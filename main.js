@@ -246,6 +246,10 @@ async function captureOnce(probe, label, overlay) {
   const shot = { label, overlayContent: overlay && !overlay.isDestroyed() ? overlay.getContentBounds() : null, overlayBounds: overlay && !overlay.isDestroyed() ? overlay.getBounds() : null };
   results.capture.shots.push(shot);
   try {
+    // Canary: change visible, unprotected text so a live frame differs from the control.
+    shot.canary = `${label} ${Date.now()}`;
+    await probe.webContents.executeJavaScript(`document.getElementById("s").textContent = ${JSON.stringify(shot.canary)}`);
+    await sleep(300);
     const g = await withTimeout(probe.webContents.executeJavaScript("window.grab()", true), 10000, "grab");
     const file = path.join(OUT, `${TAG}-${label}-getDisplayMedia.png`);
     fs.writeFileSync(file, Buffer.from(g.dataUrl.split(",")[1], "base64"));
