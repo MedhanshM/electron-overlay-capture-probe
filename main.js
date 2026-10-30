@@ -322,12 +322,19 @@ async function runCapture() {
     { label: "no-type-panel", v: { ctor: { type: undefined } } },
     { label: "setBounds-after-showInactive", v: { setBoundsAfter: true } },
   ];
-  for (const { label, v } of capVariants) {
-    const rec = { name: `capture:${label}`, requested: d.bounds, display: { bounds: d.bounds, workArea: d.workArea, scaleFactor: d.scaleFactor }, snaps: [], events: [] };
+  // Positive controls for the black-region check: a small opaque white window, unprotected and protected.
+  const box = { x: d.bounds.x + 100, y: d.bounds.y + 250, width: 400, height: 300 };
+  const opaque = { transparent: false, backgroundColor: "#ffffff" };
+  capVariants.push(
+    { label: "opaque-box", rect: box, v: { ctor: opaque } },
+    { label: "opaque-box-contentProtection", rect: box, v: { ctor: opaque, contentProtection: true } }
+  );
+  for (const { label, v, rect } of capVariants) {
+    const rec = { name: `capture:${label}`, requested: rect || d.bounds, display: { bounds: d.bounds, workArea: d.workArea, scaleFactor: d.scaleFactor }, snaps: [], events: [] };
     results.variants.push(rec);
     let win = null;
     try {
-      win = await createOverlay({ ...d.bounds }, v, rec);
+      win = await createOverlay({ ...(rect || d.bounds) }, v, rec);
       win.webContents.send("overlay-strokes", strokesPayload());
       await sleep(1000);
       await captureOnce(probe, label, win);
