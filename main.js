@@ -117,6 +117,10 @@ async function createOverlay(rect, v, rec) {
     win.setBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
     snap(win, "after-setBounds-hidden", rec);
   }
+  if (v.contentProtectionEarly) {
+    win.setContentProtection(true);
+    snap(win, "after-setContentProtection-early", rec);
+  }
   if (!v.minimal) {
     if (!v.skipVisibleOnAll) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     snap(win, "after-setVisibleOnAllWorkspaces", rec);
@@ -310,6 +314,7 @@ async function runCapture() {
   const capVariants = [
     { label: "product-baseline", v: {} },
     { label: "contentProtection-true", v: { contentProtection: true } },
+    { label: "fixed", v: { setBoundsAfterConstruct: true, contentProtectionEarly: true } },
     { label: "no-type-panel", v: { ctor: { type: undefined } } },
     { label: "setBounds-after-showInactive", v: { setBoundsAfter: true } },
   ];
