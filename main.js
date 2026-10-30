@@ -113,6 +113,10 @@ async function createOverlay(rect, v, rec) {
     });
   }
   snap(win, "after-construct", rec);
+  if (v.setBoundsAfterConstruct) {
+    win.setBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+    snap(win, "after-setBounds-hidden", rec);
+  }
   if (!v.minimal) {
     if (!v.skipVisibleOnAll) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     snap(win, "after-setVisibleOnAllWorkspaces", rec);
@@ -151,6 +155,7 @@ const VARIANTS = [
   { name: "show()-instead-of-showInactive()", showCall: "show" },
   { name: "ctor-show-true", ctor: { show: true }, showCall: "none" },
   { name: "setBounds(display.bounds)-after-showInactive", setBoundsAfter: true },
+  { name: "setBounds(display.bounds)-right-after-construct", setBoundsAfterConstruct: true },
   { name: "no-setVisibleOnAllWorkspaces", skipVisibleOnAll: true },
   { name: "no-setIgnoreMouseEvents", skipIgnoreMouse: true },
   { name: "focusable-true", ctor: { focusable: true } },
