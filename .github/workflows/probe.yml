@@ -1,0 +1,71 @@
+name: probe
+on:
+  workflow_dispatch:
+    inputs:
+      oses:
+        description: JSON list of runner labels
+        default: '["windows-latest","macos-latest"]'
+      steps:
+        description: comma list of variants,resolve,capture,q6
+        default: 'variants,resolve,capture,q6'
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.oses) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - name: environment (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          & {
+            Get-ComputerInfo -Property OsName,OsVersion,OsBuildNumber,WindowsVersion | Format-List
+            "current process session: " + [System.Diagnostics.Process]::GetCurrentProcess().SessionId
+            "explorer processes:"; Get-Process explorer -ErrorAction SilentlyContinue | Format-Table Id,SessionId,ProcessName -AutoSize
+            "query user:"; query user 2>&1
+            Add-Type -AssemblyName System.Windows.Forms
+            "Screens (DPI-unaware pwsh view):"; [System.Windows.Forms.Screen]::AllScreens | Format-List
+            "Desktop DPI regs:"; Get-ItemProperty 'HKCU:\Control Panel\Desktop' -ErrorAction SilentlyContinue | Select-Object LogPixels,Win8DpiScaling | Format-List
+            "Taskbar settings:"; Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3' -ErrorAction SilentlyContinue | Format-List
+          } *>&1 | Tee-Object -FilePath out/env-windows.txt
+      - name: environment (mac)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          { sw_vers; system_profiler SPDisplaysDataType; } 2>&1 | tee out/env-mac.txt
+      - name: probe (default)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          OUT_DIR: out
+          RUN_TAG: default
+          STEPS: ${{ inputs.steps }}
+          ELECTRON_ENABLE_LOGGING: '1'
+        run: npx electron .
+      - name: probe (--force-device-scale-factor=1.25, Windows only, variants only)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          OUT_DIR: out
+          RUN_TAG: dsf125
+          STEPS: variants,capture
+          VARIANTS: baseline,no-setAlwaysOnTop,setBounds(display.bounds)-after-showInactive,minimal-frameless
+        run: npx electron . --force-device-scale-factor=1.25
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-${{ matrix.os }}
+          path: out/

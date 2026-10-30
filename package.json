@@ -1,0 +1,9 @@
+{
+  "name": "overlay-capture-probe",
+  "version": "0.0.1",
+  "private": true,
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "40.1.0"
+  }
+}

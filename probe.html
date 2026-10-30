@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>probe</title>
+<style>body{margin:0;background:#222;color:#ddd;font:12px sans-serif}video{width:100%;height:150px;background:#000}</style>
+</head><body><div id="s">probe</div><video muted playsinline></video>
+<script>
+const timeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout: " + what)), ms))]);
+
+window.startCapture = async () => {
+  const s = await timeout(navigator.mediaDevices.getDisplayMedia({ video: true }), 15000, "getDisplayMedia");
+  window._s = s;
+  const v = document.querySelector("video");
+  v.srcObject = s;
+  await v.play();
+  await timeout(new Promise((r) => { const f = () => (v.videoWidth ? r() : setTimeout(f, 50)); f(); }), 8000, "videoWidth");
+  const t = s.getVideoTracks()[0];
+  return { w: v.videoWidth, h: v.videoHeight, label: t.label, settings: t.getSettings(), isSecureContext };
+};
+
+const frameCb = (v) => timeout(new Promise((r) => v.requestVideoFrameCallback(() => r(true))), 1500, "rVFC").catch(() => false);
+
+window.grab = async () => {
+  const v = document.querySelector("video");
+  const f1 = await frameCb(v);
+  const f2 = await frameCb(v);
+  const c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  return { w: c.width, h: c.height, freshFrames: [f1, f2], dataUrl: c.toDataURL("image/png") };
+};
+
+window.stopCapture = () => { if (window._s) window._s.getTracks().forEach((t) => t.stop()); return true; };
+
+function runs(values) {
+  const out = []; let start = -1;
+  for (let i = 0; i <= values.length; i++) {
+    const on = i < values.length && values[i];
+    if (on && start < 0) start = i;
+    if (!on && start >= 0) { out.push({ start, end: i - 1, center: (start + i - 1) / 2 }); start = -1; }
+  }
+  return out.slice(0, 40);
+}
+
+window.analyze = async (dataUrl) => {
+  const img = new Image(); img.src = dataUrl; await img.decode();
+  const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const ctx = c.getContext("2d", { willReadFrequently: true }); ctx.drawImage(img, 0, 0);
+  const W = c.width, H = c.height; const d = ctx.getImageData(0, 0, W, H).data;
+  const px = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+  const isRed = ([r, g, b]) => r > 170 && g < 90 && b < 90;
+  const isViolet = ([r, g, b]) => b > 170 && b - r > 50 && b - g > 90 && r > 90 && r < 190 && g < 140;
+  const col = (x, pred) => runs(Array.from({ length: H }, (_, y) => pred(px(x, y))));
+  const row = (y, pred) => runs(Array.from({ length: W }, (_, x) => pred(px(x, y))));
+  const X = (f) => Math.round(f * (W - 1)), Y = (f) => Math.round(f * (H - 1));
+  return {
+    W, H,
+    redRowsAtX30: col(X(0.3), isRed),
+    redRowsAtX15: col(X(0.15), isRed),
+    redColsAtY40: row(Y(0.4), isRed),
+    violetRowsAtX30: col(X(0.3), isViolet),
+    violetColsAtY45: row(Y(0.45), isViolet),
+    samples: { tl: px(1, 1), t2: px(X(0.3), 2), bottom2: px(X(0.3), H - 3), mid: px(X(0.3), Y(0.45)) },
+  };
+};
+</script></body></html>
